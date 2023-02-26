@@ -189,12 +189,8 @@ class fc(object):
         
         w = self.params[self.w_name]
         b = self.params[self.b_name]
-        lst = list()
         
-        for x in feat:
-            res = w.T.dot(x)+b
-            lst.append(res)
-        output = np.array(lst)
+        output = feat.dot(w)+b
 
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -219,17 +215,15 @@ class fc(object):
         #############################################################################
         pass
         # Contains x and dprev Contains Dloss/Dy
-        x = feat 
         w = self.params[self.w_name]
         b = self.params[self.b_name]
        
-        dx = np.dot(dprev, w.T)
-        dw = np.dot(x.reshape(dprev.shape[0], -1).T, dprev)
+        dfeat = np.dot(dprev, w.T)
+        dw = np.dot(feat.T, dprev)
         db = np.sum(dprev, axis=0)
         
         self.grads[self.w_name] = dw
         self.grads[self.b_name] = db
-        dfeat = dx
 
         #############################################################################
         #                             END OF YOUR CODE                              #

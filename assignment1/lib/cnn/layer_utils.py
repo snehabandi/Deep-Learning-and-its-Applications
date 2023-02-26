@@ -176,6 +176,15 @@ class ConvLayer2D(object):
                         conv_out[batch, ii//S, jj//S, f] = np.dot(wt.T,x)+b[f]
                         
         output = conv_out
+        #optimized code
+        # for jj in range(0,input_width -K + 1,S):
+        #     for ii in range(0,input_height -K + 1,S):
+        #         for f in range(N):
+        #             x = img_padded[:, ii:ii + K, jj : jj+K, :] .reshape(batch_size,-1)#[B,H*W*C]
+        #             wt = w[:,:,:,f].reshape(-1) # [K*K*C,N]
+        #             conv_out[:, ii//S, jj//S, f] = np.dot(x,wt)+b[f]
+                        
+        # output = conv_out
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -220,6 +229,7 @@ class ConvLayer2D(object):
         dA_prev = np.zeros((m, n_H_prev, n_W_prev, n_C_prev))                           
         dW = np.zeros((f, f, n_C_prev, n_C))
         dB = np.zeros((1, 1, 1, n_C))
+        dimg = np.zeros((m, n_H_prev, n_W_prev, n_C_prev))                           
 
         # Pad A_prev and dA_prev
         A_prev_pad = np.pad(A_prev,((0, 0), (pad, pad), (pad, pad), (0, 0)), mode='constant')
@@ -247,17 +257,20 @@ class ConvLayer2D(object):
                         # Update gradients for the window and the filter's parameters using the code formulas given above
                         da_prev_pad[vert_start:vert_end, horiz_start:horiz_end, :] += W[:,:,:,c] * dZ[i, h, w, c]
                         dW[:,:,:,c] += a_slice * dZ[i, h, w, c]
-
+                        dB[:,:,:,c] += dZ[i, h, w, c]
 #                         w_re = w[:,:, :, f].reshape(-1,w.shape[2])               #(4,4,3,12)
 #                         dL_dX = dprev[i,:,:,c].reshape(-1,1)         # (15, 4, 4, 12)
 #                         da_prev_pad[i, h, w, :] += np.dot(dL_dX.T,w_re) # (15,8,8,3)
             
             # Set the ith training example's dA_prev to the unpaded da_prev_pad (Hint: use X[pad:-pad, pad:-pad, :])
-            dimg = da_prev_pad[pad:-pad, pad:-pad, :]
+            if pad!=0:
+                dimg[i] = da_prev_pad[pad:-pad, pad:-pad, :]
+            else:
+                dimg[i] = da_prev_pad
         ### END CODE HERE ###
+            # dB = np.sum(dZ, axis=(0, 1,2)) 
     
-    
-            dimg, self.grads[self.w_name], self.grads[self.b_name] = dimg,dW,np.sum(dZ, axis=(0, 1,2))
+            dimg, self.grads[self.w_name], self.grads[self.b_name] = dimg,dW,dB
 
     
     

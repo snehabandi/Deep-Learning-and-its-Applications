@@ -144,6 +144,7 @@ def train_net(data, model, loss_func, optimizer, batch_size, max_epochs,
             print ("Decaying learning rate of the optimizer to {}".format(optimizer.lr))
 
         # Main training loop
+
         for iter in tqdm(range(iter_start, iter_end)):
             data_batch, labels_batch = dataloader.get_batch()
 
@@ -157,24 +158,31 @@ def train_net(data, model, loss_func, optimizer, batch_size, max_epochs,
             #Weights and bias initialized
 
             #Initiate forward pass and calculate output and gradients
-            output = model.forward(data_train, True)
+            output = model.forward(data_batch, True)
 
             #Calling loss function : Forward and backward pass for loss (passed above)
-            loss = loss_func.forward(output, labels_train)
-            
+            loss = loss_func.forward(output, labels_batch)
             #Storing loss history
             loss_hist.append(loss)
             
             #Backward pass of the network : INCOMPLETE : REGULARIZATION INSTRUCTION READ ABOVE
-            dLoss = loss_func.backward()
-            dX = model.backward(dLoss)
+            if regularization == "l1":
+                dLoss = loss_func.backward()
+                dX = model.backward(dLoss, regularization = "l1", reg_lambda = reg_lambda)
+        
+            elif regularization == "l2":
+                dLoss = loss_func.backward()
+                dX = model.backward(dLoss, regularization = "l2", reg_lambda = reg_lambda)
+        
+            else:
+                dLoss = loss_func.backward()
+                dX = model.backward(dLoss)            
 
             #Gradient descent
 #             grads = model.net.grads            
             
             #Optimizer
             optimizer.step()
-            
             #############################################################################
             #                             END OF YOUR CODE                              #
             #############################################################################
@@ -193,8 +201,8 @@ def train_net(data, model, loss_func, optimizer, batch_size, max_epochs,
         # compute_acc method, store the results to train_acc and val_acc,           #
         # respectively                                                              #
         #############################################################################
-        train_acc = compute_acc(model, data_train, labels_train, batch_size)
-        val_acc = compute_acc(model, data_val, labels_val, batch_size)
+        train_acc = compute_acc(model, data_train, labels_train)
+        val_acc = compute_acc(model, data_val, labels_val)
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -209,11 +217,8 @@ def train_net(data, model, loss_func, optimizer, batch_size, max_epochs,
             #############################################################################
             pass
             opt_val_acc = val_acc
-            
-            opt_params = {}
-            for layer in model.net.layers:
-                for n, v in layer.params.items():
-                    opt_params[n] = v.copy()
+            model.net.gather_params()
+            opt_params = model.net.params
             #############################################################################
             #                             END OF YOUR CODE                              #
             #############################################################################

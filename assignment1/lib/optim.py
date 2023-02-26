@@ -75,11 +75,16 @@ class Adam(Optimizer):
         # TODO: Implement the Adam with [optinal] Weight Decay                      #
         #############################################################################
         pass
+        # print(self.mt, self.vt)
         for n, dx in layer.grads.items():
             #x is thetaT
             x = layer.params[n]
             #m, v, t at t = t-1
-            m, v, t = self.mt[n], self.vt[n], self.t
+            if n not in self.mt or n not in self.vt:
+                self.mt[n] = np.zeros_like(x)
+                self.vt[n] = np.zeros_like(x)
+            m, v, t= self.mt[n], self.vt[n],self.t
+
             beta1, beta2 = self.beta1, self.beta2
 
             #Updating t=> t = t +1 (t goes from t-1 to t)
@@ -91,7 +96,7 @@ class Adam(Optimizer):
             mb = m / (1.0 - beta1**float(t))
             vb = v / (1.0 - beta2**float(t))
             
-            x_next = x - self.lr * mb / (np.sqrt(vb) + self.eps)
+            x_next = x - (self.lr * mb / (np.sqrt(vb) + self.eps)) - (self.weight_decay * x)
 
             #Updating variables
             self.mt[n], self.vt[n], self.t = m, v, t
