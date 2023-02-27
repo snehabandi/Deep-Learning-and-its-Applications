@@ -171,20 +171,12 @@ class ConvLayer2D(object):
             for jj in range(0,input_width + (2*P)-K + 1,S):
                 for ii in range(0,input_height +(2*P)-K + 1,S):
                     for f in range(N):
-                        x = img_padded[batch, ii:ii + K, jj : jj+K, :].reshape(-1,1)
-                        wt = w[:,:,:,f].reshape(-1,1) # [K*K*C,f]
-                        conv_out[batch, ii//S, jj//S, f] = np.dot(wt.T,x)+b[f]
+                        x = img_padded[batch, ii:ii + K, jj : jj+K, :].reshape(-1)
+                        wt = w[:,:,:,f].reshape(-1) # [K*K*C,f]
+                        bt = b.reshape(-1)
+                        conv_out[batch, ii//S, jj//S, f] = np.dot(wt.T,x)+bt[f]
                         
         output = conv_out
-        #optimized code
-        # for jj in range(0,input_width -K + 1,S):
-        #     for ii in range(0,input_height -K + 1,S):
-        #         for f in range(N):
-        #             x = img_padded[:, ii:ii + K, jj : jj+K, :] .reshape(batch_size,-1)#[B,H*W*C]
-        #             wt = w[:,:,:,f].reshape(-1) # [K*K*C,N]
-        #             conv_out[:, ii//S, jj//S, f] = np.dot(x,wt)+b[f]
-                        
-        # output = conv_out
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -207,114 +199,37 @@ class ConvLayer2D(object):
         # Store the output gradients in the variable dimg provided above.           #
         #############################################################################
         pass
-        ### START CODE HERE ###
+    
+        #Get weight and bias
+        W, b= self.params[self.w_name] , self.params[self.b_name]
 
-        # Retrieve information from "cache"
-        A_prev, W, b, dZ = img, self.params[self.w_name] , self.params[self.b_name], dprev
+        # Retrieve hyperparameters and dimensions 
+        C, N, K, P, S = self.input_channels, self.number_filters, self.kernel_size, self.padding, self.stride
+        batch_size, input_height, input_width,_ = img.shape
 
-        # Retrieve dimensions from A_prev's shape
-        (m, n_H_prev, n_W_prev, n_C_prev) = A_prev.shape
+        # Initialize dimg, dW, db 
+        dimg = np.zeros(img.shape)                           
+        dW = np.zeros(W.shape)
+        dB = np.zeros((1, 1, 1, N))
 
-        # Retrieve dimensions from W's shape
-        (f, f, n_C_prev, n_C) = W.shape
+        # Pad img and dimg
+        img_padded = np.pad(img,((0, 0), (P, P), (P, P), (0, 0)), mode='constant')
+        dimg_padded = np.pad(dimg,((0, 0), (P, P), (P, P), (0, 0)), mode='constant')
 
-        # Retrieve information from "hparameters"
-        stride = self.stride
-        pad = self.padding
+        #db : dL/db = dL/dO * dO/db = dprev * 1, dw :  dL/dW = dL/dO*do/dW = X * dprev, dx :  dL/dX = dL/dO*dO/dX = W * dprev
+        for i in range(batch_size):                       
+            for ii in range(0,input_height+(2*P)-K+1, S):                  
+                for jj in range(0,input_width+(2*P)-K+1, S):               
+                    for f in range(N):          
+                        dimg_padded[i,ii:ii+K, jj:jj+K, :] += W[:,:,:,f] * dprev[i, ii//S, jj//S, f]
+                        dW[:,:,:,f] += img_padded[i,ii:ii+K, jj:jj+K, :] * dprev[i, ii//S, jj//S, f]
+                        dB[:,:,:,f] += dprev[i, ii//S, jj//S, f]
 
-        # Retrieve dimensions from dZ's shape
-        (m, n_H, n_W, n_C) = dZ.shape
-
-        # Initialize dA_prev, dW, db with the correct shapes
-        dA_prev = np.zeros((m, n_H_prev, n_W_prev, n_C_prev))                           
-        dW = np.zeros((f, f, n_C_prev, n_C))
-        dB = np.zeros((1, 1, 1, n_C))
-        dimg = np.zeros((m, n_H_prev, n_W_prev, n_C_prev))                           
-
-        # Pad A_prev and dA_prev
-        A_prev_pad = np.pad(A_prev,((0, 0), (pad, pad), (pad, pad), (0, 0)), mode='constant')
-        dA_prev_pad = np.pad(dA_prev,((0, 0), (pad, pad), (pad, pad), (0, 0)), mode='constant')
-
-        for i in range(m):                       # loop over the training examples
-
-            # select ith training example from A_prev_pad and dA_prev_pad
-            a_prev_pad = A_prev_pad[i]
-            da_prev_pad = dA_prev_pad[i]
-
-            for h in range(n_H):                   # loop over vertical axis of the output volume
-                for w in range(n_W):               # loop over horizontal axis of the output volume
-                    for c in range(n_C):           # loop over the channels of the output volume
-
-                        # Find the corners of the current "slice"
-                        vert_start  = h*stride
-                        vert_end    = vert_start + f
-                        horiz_start = w*stride
-                        horiz_end   = horiz_start + f
-
-                        # Use the corners to define the slice from a_prev_pad
-                        a_slice = a_prev_pad[vert_start:vert_end, horiz_start:horiz_end, :]
-
-                        # Update gradients for the window and the filter's parameters using the code formulas given above
-                        da_prev_pad[vert_start:vert_end, horiz_start:horiz_end, :] += W[:,:,:,c] * dZ[i, h, w, c]
-                        dW[:,:,:,c] += a_slice * dZ[i, h, w, c]
-                        dB[:,:,:,c] += dZ[i, h, w, c]
-#                         w_re = w[:,:, :, f].reshape(-1,w.shape[2])               #(4,4,3,12)
-#                         dL_dX = dprev[i,:,:,c].reshape(-1,1)         # (15, 4, 4, 12)
-#                         da_prev_pad[i, h, w, :] += np.dot(dL_dX.T,w_re) # (15,8,8,3)
             
-            # Set the ith training example's dA_prev to the unpaded da_prev_pad (Hint: use X[pad:-pad, pad:-pad, :])
-            if pad!=0:
-                dimg[i] = da_prev_pad[pad:-pad, pad:-pad, :]
-            else:
-                dimg[i] = da_prev_pad
-        ### END CODE HERE ###
-            # dB = np.sum(dZ, axis=(0, 1,2)) 
-    
-            dimg, self.grads[self.w_name], self.grads[self.b_name] = dimg,dW,dB
+        # Remove Padding
+        dimg = dimg_padded[:,P:-P, P:-P, :]
 
-    
-    
-#         batch_size, input_height, input_width, _ = img.shape
-        
-#         C, N, K, P, S = self.input_channels, self.number_filters, self.kernel_size, self.padding, self.stride
-
-#         #Get weight and bias
-#         w = self.params[self.w_name]
-# #         b = self.params[self.b_name]
-
-#         #db : dL/db = dL/dO * dO/db = dprev * 1
-#         db = np.sum(dprev, axis=(0, 1,2))
-        
-#         #dw :  dL/dW = dL/dO*do/dW = X * dprev
-#         img_padded = np.pad(img,((0, 0), (P, P), (P, P), (0, 0)), mode='constant')                                    
-#         dw = np.zeros((K ,K ,C, N),dtype=img.dtype)
-
-#         for batch in range(batch_size):
-#             for f in range(N):
-#                 dL_dW = dprev[batch,:,:,f].reshape(-1,1) 
-#                 for ii in range(0,input_height + (2*P)-K+1,S):
-#                     for jj in range(0,input_width+ (2*P)-K+1,S):
-#                         for c in range(C):
-#                             x = img_padded[batch, ii:ii + K, jj : jj+K, c].reshape(-1,1)
-#                             dw[ii//S, jj//S,c, f] += np.dot(dL_dW.T,x)
-                            
-#         #dx :  dL/dX = dL/dO*dO/dX = W * dprev
-#         dx = np.zeros((img.shape),dtype=img.dtype)
-#         dx_padded = np.zeros((15,10,10,3),dtype=img.dtype)
-        
-#         print(dx_padded.shape)
-#         for batch in range(batch_size):
-#             for ii in range(0,input_height + (2*P)-K+1,S):
-#                 for jj in range(0,input_width+ (2*P)-K+1,S):
-#                     for c in range(C):
-#                         for f in range(N):
-#                             dL_dX = dprev[batch,:,:,f].reshape(-1,1) 
-#                             w_re = w[:,:, c, f].reshape(-1,1)
-#                             dx_padded[batch, ii//S, jj//S, c] = np.dot(dL_dX.T,w_re)
-
-#         dx_depadded = dx_padded[:, P:-P,P:-P, :]
-
-#         dimg, self.grads[self.w_name], self.grads[self.b_name] = dx_depadded,dw,db
+        self.grads[self.w_name], self.grads[self.b_name] = dW,dB
         
         #############################################################################
         #                             END OF YOUR CODE                              #
@@ -342,40 +257,25 @@ class MaxPoolingLayer(object):
         # Store your results in the variable "output" provided above.               #
         #############################################################################
         pass
-        A_prev = img
         
-        # Retrieve dimensions from the input shape
-        (m, n_H_prev, n_W_prev, n_C_prev) = A_prev.shape
+        #create padded image
+        K, S = self.pool_size, self.stride
 
-        # Retrieve hyperparameters from "hparameters"
-        f = self.pool_size
-        stride = self.stride
+        #Get input and output shapes, to define pool output
+        batch_size , input_height, input_width, N = img.shape
+        output_height = (input_height-K)//S + 1
+        output_width = (input_width-K)//S + 1
 
-        # Define the dimensions of the output
-        n_H = int(1 + (n_H_prev - f) / stride)
-        n_W = int(1 + (n_W_prev - f) / stride)
-        n_C = n_C_prev
+        pooling_out = np.zeros((batch_size, output_height , output_width, N),dtype=img.dtype)
 
-        # Initialize output matrix A
-        A = np.zeros((m, n_H, n_W, n_C)) 
-        for i in range(m):                         # loop over the training examples
-            for h in range(n_H):                     # loop on the vertical axis of the output volume
-                for w in range(n_W):                 # loop on the horizontal axis of the output volume
-                    for c in range (n_C):            # loop over the channels of the output volume
-
-                        # Find the corners of the current "slice" (≈4 lines)
-                        vert_start = h * stride
-                        vert_end   = vert_start + f
-                        horiz_start = w * stride
-                        horiz_end   = horiz_start + f
-
-                        # Use the corners to define the current slice on the ith training example of A_prev, channel c. (≈1 line)
-                        a_prev_slice = A_prev[i, vert_start:vert_end, horiz_start:horiz_end, c]
-
-                        # Compute the pooling operation on the slice. Use an if statment to differentiate the modes. Use np.max/np.mean.
-                        A[i, h, w, c] = np.max(a_prev_slice)
-                        
-        output = A
+        for batch in range(batch_size):
+            for jj in range(0,input_width -K + 1,S):
+                for ii in range(0,input_height -K + 1,S):
+                    for f in range(N):
+                        x = img[batch, ii:ii + K, jj : jj+K, :]
+                        pooling_out[batch, ii//S, jj//S, f] = np.max(x)
+                      
+        output = pooling_out
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
@@ -397,46 +297,26 @@ class MaxPoolingLayer(object):
         #############################################################################
         pass
     
-        def create_mask_from_window(x):
+        def find_mask(x):
             mask = (x== np.max(x))
             return mask
         
-        ### START CODE HERE ###
-    
-        # Retrieve information from cache (≈1 line)
-        A_prev, dA = img, dprev
+        #create padded image
+        K, S = self.pool_size, self.stride
 
-        # Retrieve hyperparameters from "hparameters" (≈2 lines)
-        stride = self.stride
-        f = self.pool_size
+        #Get input and output shapes, to define pool output
+        batch_size , input_height, input_width, C = img.shape
+        pooling_out = np.zeros(img.shape)
 
-        # Retrieve dimensions from A_prev's shape and dA's shape (≈2 lines)
-        m, n_H_prev, n_W_prev, n_C_prev = A_prev.shape
-        m, n_H, n_W, n_C = dA.shape
-
-        # Initialize dA_prev with zeros (≈1 line)
-        dA_prev = np.zeros(A_prev.shape)
-
-        for i in range(m):                       # loop over the training examples
-            # select training example from A_prev (≈1 line)
-            a_prev = A_prev[i]
-            for h in range(n_H):                   # loop on the vertical axis
-                for w in range(n_W):               # loop on the horizontal axis
-                    for c in range(n_C):           # loop over the channels (depth)
-                        # Find the corners of the current "slice" (≈4 lines)
-                        vert_start  = h*stride
-                        vert_end    = vert_start + f
-                        horiz_start = w*stride
-                        horiz_end   = horiz_start + f
-
-                        # Use the corners and "c" to define the current slice from a_prev (≈1 line)
-                        a_prev_slice = a_prev[vert_start:vert_end, horiz_start:horiz_end, c]
-                        # Create the mask from a_prev_slice (≈1 line)
-                        mask = create_mask_from_window(a_prev_slice)
-                        # Set dA_prev to be dA_prev + (the mask multiplied by the correct entry of dA) (≈1 line)
-                        dA_prev[i, vert_start:vert_end, horiz_start:horiz_end, c] += np.multiply(mask, dA[i, h, w, c])
+        for batch in range(batch_size):
+            for jj in range(0,input_width -K + 1,S):
+                for ii in range(0,input_height -K + 1,S):
+                    for c in range(C):
+                        x = img[batch, ii:ii + K, jj : jj+K, c]
+                        mask = find_mask(x)
+                        pooling_out[batch, ii:ii + K, jj : jj+K, c] = np.multiply(mask, dprev[batch, ii//S, jj//S, c])
         
-        dimg = dA_prev
+        dimg = pooling_out
         #############################################################################
         #                             END OF YOUR CODE                              #
         #############################################################################
