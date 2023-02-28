@@ -155,34 +155,31 @@ def train_net(data, model, loss_func, optimizer, batch_size, max_epochs,
             # Store the loss to loss_hist                                               #
             #############################################################################
             
-            #Weights and bias initialized
-
             #Initiate forward pass and calculate output and gradients
             output = model.forward(data_batch, True)
 
             #Calling loss function : Forward and backward pass for loss (passed above)
             loss = loss_func.forward(output, labels_batch)
-            #Storing loss history
-            loss_hist.append(loss)
             
             #Backward pass of the network : INCOMPLETE : REGULARIZATION INSTRUCTION READ ABOVE
             if regularization == "l1":
                 dLoss = loss_func.backward()
                 dX = model.backward(dLoss, regularization = "l1", reg_lambda = reg_lambda)
-        
+            
             elif regularization == "l2":
                 dLoss = loss_func.backward()
                 dX = model.backward(dLoss, regularization = "l2", reg_lambda = reg_lambda)
-        
+            
             else:
                 dLoss = loss_func.backward()
-                dX = model.backward(dLoss)            
+                dX = model.backward(dLoss)
 
-            #Gradient descent
-#             grads = model.net.grads            
-            
             #Optimizer
             optimizer.step()
+            
+            #Storing loss history
+            loss_hist.append(loss)
+
             #############################################################################
             #                             END OF YOUR CODE                              #
             #############################################################################
