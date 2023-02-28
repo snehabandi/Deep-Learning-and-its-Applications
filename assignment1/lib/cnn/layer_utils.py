@@ -69,9 +69,12 @@ class sequential(object):
         """
         for layer in self.layers:
             for n, v in layer.grads.items():
+                ########### TODO #############
+                pass
                 param = self.params[n]
                 grad = (param > 0).astype(np.float32) - (param < 0).astype(np.float32)
                 self.grads[n] += lam * grad
+                ########### END  #############
 
     def apply_l2_regularization(self, lam):
         """
@@ -79,7 +82,10 @@ class sequential(object):
         """
         for layer in self.layers:
             for n, v in layer.grads.items():
-                self.grads[n] += lam * self.params[n]
+                ########### TODO #############
+                pass
+                self.grads[n] += 2 * lam * self.params[n]
+                ########### END  #############
 
 
     def load(self, pretrained):
@@ -225,7 +231,6 @@ class ConvLayer2D(object):
                         dW[:,:,:,f] += img_padded[i,ii:ii+K, jj:jj+K, :] * dprev[i, ii//S, jj//S, f]
                         dB[:,:,:,f] += dprev[i, ii//S, jj//S, f]
 
-            
         # Remove Padding
         dimg = dimg_padded[:,P:-P, P:-P, :]
 
